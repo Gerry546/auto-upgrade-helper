@@ -71,8 +71,10 @@ class Statistics(object):
                 stat_msg += "    * " + status + ": " + str(list_len) + "\n"
 
                 for pkg, new_ver, maintainer in self.upgrade_stats[status]:
-                    stat_msg += "        " + pkg + ", " + new_ver + ", " + \
-                                maintainer + "\n"
+                    stat_msg += "        " + pkg + ", " + new_ver
+                    if maintainer:
+                        stat_msg += ", " + maintainer
+                    stat_msg += "\n"
 
         if self.total_attempted == 0:
             percent_succeded = 0
@@ -93,7 +95,7 @@ class Statistics(object):
         for m in self.maintainers:
             attempted = self.succeeded[m] + self.failed[m]
             stat_msg += "    %s: attempted=%d succeeded=%d(%.2f%%) failed=%d(%.2f%%)\n" % \
-                        (m.split("@")[0], attempted, self.succeeded[m],
+                        (m.split("@")[0] if m else "Maintainerless", attempted, self.succeeded[m],
                         self.succeeded[m] * 100.0 / attempted,
                         self.failed[m],
                         self.failed[m] * 100.0 / attempted)
