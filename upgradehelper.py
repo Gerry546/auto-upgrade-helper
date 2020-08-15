@@ -201,9 +201,7 @@ class Updater(object):
         self.uh_dir = os.path.join(build_dir, "upgrade-helper")
         if not os.path.exists(self.uh_dir):
             os.mkdir(self.uh_dir)
-        self.uh_base_work_dir = settings.get('workdir', '')
-        if not self.uh_base_work_dir:
-            self.uh_base_work_dir = self.uh_dir
+        self.uh_base_work_dir = settings.get('workdir', self.uh_dir)
         if self.opts['layer_mode'] == 'yes':
             self.uh_base_work_dir = os.path.join(self.uh_base_work_dir,
                     self.opts['layer_name'])
