@@ -126,15 +126,9 @@ def compile(devtool, bb, git, opts, pkg_ctx):
     for machine in opts['machines']:
         I(" %s: compiling upgraded version for %s ..." % (pkg_ctx['PN'], machine))
         _compile(bb, pkg_ctx['PN'], machine, pkg_ctx['workdir'])
-        if opts['buildhistory']:
-            pkg_ctx['buildhistory'].add()
-
-def buildhistory_diff(devtool, bb, git, opts, pkg_ctx):
-    if not opts['buildhistory']:
-        return
-
-    I(" %s: Checking buildhistory ..." % pkg_ctx['PN'])
-    pkg_ctx['buildhistory'].diff()
+        if opts['buildhistory'] and machine == opts['machines'][0]:
+            I(" %s: Checking buildhistory ..." % pkg_ctx['PN'])
+            pkg_ctx['buildhistory'].diff()
 
 def _rm_source_tree(devtool_output):
     for line in devtool_output.split("\n"):
@@ -161,5 +155,4 @@ upgrade_steps = [
     (devtool_upgrade, "Running 'devtool upgrade' ..."),
     (devtool_finish, "Running 'devtool finish' ..."),
     (compile, None),
-    (buildhistory_diff, None),
 ]

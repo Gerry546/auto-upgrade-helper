@@ -37,42 +37,21 @@ class BuildHistory(object):
         self.bb = bb
         self.pn = pn
         self.workdir = workdir
-        self.revs = []
-
-        self.buildhistory_dir = os.path.join(self.workdir, 'buildhistory')
-        if not os.path.exists(self.buildhistory_dir):
-            os.mkdir(self.buildhistory_dir)
-
-        self.git = Git(self.buildhistory_dir)
-
-        os.environ['BB_ENV_EXTRAWHITE'] = os.environ['BB_ENV_EXTRAWHITE'] + \
-                                    " BUILDHISTORY_DIR"
-        os.environ["BUILDHISTORY_DIR"] = self.buildhistory_dir
 
     def init(self, machines):
-        self.bb.cleansstate(self.pn)
         for machine in machines:
             self.bb.complete(self.pn, machine)
-            self.revs.append(self.git.last_commit("master"))
-
-    def add(self):
-        self.revs.append(self.git.last_commit("master"))
 
     def diff(self):
-        rev_initial = self.revs[0]
-        rev_final = self.revs[-1]
-
         try:
-            cmd = "buildhistory-diff -p %s %s %s"  % (self.buildhistory_dir, 
-                rev_initial, rev_final)
+            cmd = "buildhistory-diff"
             stdout, stderr = bb.process.run(cmd)
             if stdout and os.path.exists(self.workdir):
                 with open(os.path.join(self.workdir, "buildhistory-diff.txt"),
                         "w+") as log:
                     log.write(stdout)
 
-            cmd_full = "buildhistory-diff -a -p %s %s %s"  % (self.buildhistory_dir, 
-                        rev_initial, rev_final)
+            cmd_full = "buildhistory-diff -a"
             stdout, stderr = bb.process.run(cmd_full)
             if stdout and os.path.exists(self.workdir):
                 with open(os.path.join(self.workdir, "buildhistory-diff-full.txt"),
