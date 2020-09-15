@@ -40,7 +40,16 @@ class BuildHistory(object):
 
     def init(self, machines):
         for machine in machines:
-            self.bb.complete(self.pn, machine)
+            try:
+                self.bb.complete(self.pn, machine)
+            except Error as e:
+                for line in e.stdout.split("\n"):
+                    # version going backwards is not a real error
+                    if re.match(".* went backwards which would break package feeds .*", line):
+                        break
+                else:
+                    raise e
+
 
     def diff(self):
         try:
