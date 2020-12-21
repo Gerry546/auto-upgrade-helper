@@ -320,7 +320,10 @@ class Updater(object):
 
         cc_addr = None
         if "cc_recipients" in settings:
-            cc_addr = settings["cc_recipients"].split()
+            if 'unassigned' in to_addr:
+                to_addr = settings["cc_recipients"].split()
+            else:
+                cc_addr = settings["cc_recipients"].split()
 
         newversion = pkg_ctx['NPV'] if not pkg_ctx['NPV'].endswith("new-commits-available") else pkg_ctx['NSRCREV']
         subject = "[AUH] " + pkg_ctx['PN'] + ": upgrading to " + newversion
