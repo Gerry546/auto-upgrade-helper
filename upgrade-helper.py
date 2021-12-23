@@ -153,7 +153,7 @@ class Updater(object):
         except EmptyEnvError as e:
             import traceback
             E( " %s\n%s" % (e.message, traceback.format_exc()))
-            E( " Bitbake output:\n%s" % (e.stdout))
+            E( " Bitbake output:\n%s" % (e.stdout + e.stderr))
             exit(1)
 
         self._set_options()
@@ -459,7 +459,7 @@ class Updater(object):
                     E(" Can't build gcc-runtime for %s." % machine)
 
                     if isinstance(e, Error):
-                        E(e.stdout)
+                        E(e.stdout + e.stderr)
                     else:
                         import traceback
                         traceback.print_exc(file=sys.stdout)

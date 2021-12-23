@@ -107,8 +107,8 @@ def _compile(bb, pkg, machine, workdir):
             bb.complete(pkg, machine)
         except Error as e:
             with open("{}/bitbake-output-{}.txt".format(workdir, machine), 'w') as f:
-                f.write(e.stdout)
-            for line in e.stdout.split("\n"):
+                f.write(e.stdout + e.stderr)
+            for line in e.stdout.split("\n") + e.stderr.split("\n"):
                 # version going backwards is not a real error
                 if re.match(".* went backwards which would break package feeds .*", line):
                     break

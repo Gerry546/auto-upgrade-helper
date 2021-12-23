@@ -43,7 +43,7 @@ class BuildHistory(object):
             try:
                 self.bb.complete(self.pn, machine)
             except Error as e:
-                for line in e.stdout.split("\n"):
+                for line in e.stdout.split("\n") + e.stderr.split("\n"):
                     # version going backwards is not a real error
                     if re.match(".* went backwards which would break package feeds .*", line):
                         break

@@ -85,14 +85,14 @@ class TestImage():
             bitbake_create_output = self.bb.complete(image, machine)
         except Error as e:
             I( "   building the testimage failed! Collecting logs...")
-            bitbake_create_output = e.stdout
+            bitbake_create_output = e.stdout + e.stderr
         else:
             I( "   running %s/testimage for %s ..." % (image, machine))
             try:
                 bitbake_run_output = self.bb.complete("%s -c testimage" % image, machine)
             except Error as e:
                 I( "   running the testimage failed! Collecting logs...")
-                bitbake_run_output = e.stdout
+                bitbake_run_output = e.stdout + e.stderr
 
         if bitbake_create_output:
             with open(os.path.join(self.logdir, "bitbake-create-testimage.log"), 'w') as f:
