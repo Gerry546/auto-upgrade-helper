@@ -19,10 +19,7 @@ class Devtool(object):
             raise DevtoolError("The following devtool command failed: " + operation,
                         e.stdout, e.stderr)
 
-        if stderr is None:
-            return stdout
-        else:
-            return stdout + stderr
+        return stdout + stderr
 
     def upgrade(self, recipe, version = None, revision = None):
         cmd = " upgrade " + recipe

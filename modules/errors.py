@@ -24,7 +24,7 @@
 #
 
 class Error(Exception):
-    def __init__(self, message=None, stdout=None, stderr=None):
+    def __init__(self, message=None, stdout="", stderr=""):
         self.message = message
         self.stdout = stdout
         self.stderr = stderr
