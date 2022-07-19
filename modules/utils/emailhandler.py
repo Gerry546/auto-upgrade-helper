@@ -30,7 +30,7 @@ from logging import info as I
 from smtplib import SMTP
 import mimetypes
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.generator import Generator
 import shutil
@@ -89,8 +89,7 @@ class Email(object):
             if maintype == "text":
                 attachment = MIMEText(open(file).read(), _subtype=subtype)
             else:
-                attachment = MIMEBase(maintype, _subtype=subtype)
-                attachment.set_payload(open(file, 'rb').read())
+                attachment = MIMEApplication(open(file, 'rb').read(), _subtype=subtype)
 
             attachment.add_header('Content-Disposition', 'attachment; filename="%s"'
                                   % os.path.basename(file))
@@ -108,4 +107,3 @@ class Email(object):
             smtp.close()
         except Exception as e:
             E("Could not send email: %s" % str(e))
-
