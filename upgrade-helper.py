@@ -411,7 +411,7 @@ class Updater(object):
             I(" %s: %s" % (pkg_ctx['PN'], e.stdout))
             raise e
 
-    def send_status_mail(self, statistics_summary):
+    def send_status_mail(self, statistics_summary, attachments):
         if "status_recipients" not in settings:
             E(" Could not send status email, no recipients set!")
             return -1
@@ -425,7 +425,7 @@ class Updater(object):
             subject = "[AUH] Upgrade status: " + date.isoformat(date.today())
 
         if self.statistics.total_attempted:
-            self.email_handler.send_email(to_list, subject, statistics_summary)
+            self.email_handler.send_email(to_list, subject, statistics_summary, attachments)
         else:
             W("No recipes attempted, not sending status mail!")
 
@@ -536,9 +536,10 @@ class Updater(object):
 
         if attempted_pkgs > 0:
             publish_work_url = settings.get('publish_work_url', '')
+            attach_tarball = settings.get('summary_includes_tarball', True)
             work_tarball = os.path.join(self.uh_base_work_dir,
                     os.path.basename(self.uh_work_dir) + '.tar.gz')
-            if publish_work_url:
+            if publish_work_url or attach_tarball:
                 I(" Generating work tarball in %s ..." % work_tarball)
                 tar_cmd = ["tar", "-chzf", work_tarball, "-C", self.uh_base_work_dir, os.path.basename(self.uh_work_dir)]
                 import subprocess
@@ -546,6 +547,7 @@ class Updater(object):
                     E(" Work tarball (%s) generation failed..." % (work_tarball))
                     E(" Tar command: %s" % (" ".join(tar_cmd)))
                     publish_work_url = ''
+                    attach_tarball = False
 
             statistics_summary = self.statistics.get_summary(
                     publish_work_url, os.path.basename(self.uh_work_dir))
@@ -557,8 +559,12 @@ class Updater(object):
 
             I(" %s" % statistics_summary)
 
+            attachments = []
+            if attach_tarball:
+                attachments.append(work_tarball)
+
             if self.opts['send_email']:
-                self.send_status_mail(statistics_summary)
+                self.send_status_mail(statistics_summary, attachments)
 
 class UniverseUpdater(Updater):
     def __init__(self, args):
