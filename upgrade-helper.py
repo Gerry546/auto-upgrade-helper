@@ -358,6 +358,10 @@ class Updater(object):
             attachment_fullpath = os.path.join(pkg_ctx['workdir'], attachment)
             if os.path.isfile(attachment_fullpath):
                 attachments.append(attachment_fullpath)
+                # Also add the patch inline using the 'scissors':
+                # https://git-scm.com/docs/git-mailinfo#Documentation/git-mailinfo.txt---scissors
+                if attachment_fullpath.endswith('.patch'):
+                    msg_body += "\n\n-- >8 --\n%s" % (open(attachment_fullpath).read())
 
         if self.opts['send_email']:
             self.email_handler.send_email(to_addr, subject, msg_body, attachments, cc_addr=cc_addr)
