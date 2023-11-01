@@ -671,12 +671,10 @@ class UniverseUpdater(Updater):
         return True
 
     def _get_packages_to_upgrade(self, packages=None):
-
-        pkgs = oe.recipeutils.get_recipe_upgrade_status(self.recipes)
-
-        pkgs_list = []
-        for pkg in pkgs:
-            pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason = pkg
+    
+        # Prepare a single pkg dict data (or None is not upgradable) from recipeutils.get_recipe_upgrade_status data.
+        def _get_pkg_to_upgrade(self, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason):
+            pkg_to_upgrade = None
 
             if self.args.to_version:
                  next_ver = self.args.to_version
@@ -691,7 +689,6 @@ class UniverseUpdater(Updater):
                         "maintainer": maintainer,
                         "revision": revision
                     }
-                    pkgs_list.append(pkg_to_upgrade)
             else:
                 if no_upgrade_reason:
                     I(" Skip package %s (status = %s, current version = %s," \
@@ -701,6 +698,18 @@ class UniverseUpdater(Updater):
                     I(" Skip package %s (status = %s, current version = %s," \
                         " next version = %s)" %
                         (pn, status, cur_ver, next_ver))
+
+            return pkg_to_upgrade
+
+        pkgs = oe.recipeutils.get_recipe_upgrade_status(self.recipes)
+
+        pkgs_list = []
+        for pkg in pkgs:
+            pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason = pkg
+
+            pkg_to_upgrade = _get_pkg_to_upgrade(self, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason)
+            if pkg_to_upgrade:
+                pkgs_list.append(pkg_to_upgrade)
 
         return pkgs_list
 
