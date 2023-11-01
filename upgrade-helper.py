@@ -109,8 +109,6 @@ def parse_cmdline():
                         help="layers to include in the upgrade research")
     parser.add_argument("--layer-dir", action="store", default='',
                         help="the layers root directory")
-    parser.add_argument("--layer-machines", nargs='*', action="store", default='',
-                        help="machine to build for the layers")
     return parser.parse_args()
 
 def parse_config_file(config_file):
@@ -180,7 +178,7 @@ class Updater(object):
                 E(" In layer mode enable you need to specify %s.\n" % setting)
                 exit(1)
 
-            layer_settings = ('layer_name', 'layer_dir', 'layer_machines')
+            layer_settings = ('layer_name', 'layer_dir')
             for s in layer_settings:
                 self.opts[s] = settings.get(s, '')
                 if not self.opts[s]:
@@ -188,13 +186,11 @@ class Updater(object):
 
             self.git = Git(self.opts['layer_dir'])
             self.poky_git = Git(os.path.dirname(os.getenv('PATH', False).split(':')[0]))
-            self.opts['machines'] = self.opts['layer_machines'].split()
         else:
             # XXX: assume that the poky directory is the first entry in the PATH
             self.git = Git(os.path.dirname(os.getenv('PATH', False).split(':')[0]))
             self.poky_git = None
-            self.opts['machines'] = settings.get('machines',
-                'qemux86-64 qemuarm_musl').split()
+        self.opts['machines'] = settings.get('machines', 'qemux86-64 qemuarm_musl').split()
 
         self.opts['send_email'] = self.args.send_emails
         self.opts['author'] = "Upgrade Helper <%s>" % \
@@ -773,7 +769,6 @@ if __name__ == "__main__":
         settings['layer_mode'] = 'yes'
         settings['layer_dir'] = args.layer_dir
         settings['layer_name'] = ' '.join(args.layer_names)
-        settings['layer_machines'] = ' '.join(args.layer_machines)
 
     updater = UniverseUpdater(args)
     updater.run()
