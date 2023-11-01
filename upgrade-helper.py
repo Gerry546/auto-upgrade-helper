@@ -105,6 +105,12 @@ def parse_cmdline():
                         help="do not compile, just change the checksums, remove PR, and commit")
     parser.add_argument("-c", "--config-file", default=None,
                         help="Path to the configuration file. Default is $BUILDDIR/upgrade-helper/upgrade-helper.conf")
+    parser.add_argument("--layer-names", nargs='*', action="store", default='',
+                        help="layers to include in the upgrade research")
+    parser.add_argument("--layer-dir", action="store", default='',
+                        help="the layers root directory")
+    parser.add_argument("--layer-machines", nargs='*', action="store", default='',
+                        help="machine to build for the layers")
     return parser.parse_args()
 
 def parse_config_file(config_file):
@@ -441,7 +447,8 @@ class Updater(object):
 
         I(" ########### The list of recipes to be upgraded #############")
         for pkg_to_upgrade in pkgs_to_upgrade:
-            I(" %s, %s, %s, %s, %s" % (
+            I(" %s, %s, %s, %s, %s, %s" % (
+                pkg_to_upgrade["layer_name"],
                 pkg_to_upgrade["pn"],
                 pkg_to_upgrade["cur_ver"],
                 pkg_to_upgrade["next_ver"],
@@ -583,24 +590,26 @@ class UniverseUpdater(Updater):
     def __init__(self, args):
         Updater.__init__(self, args)
 
-        if len(args.recipe) == 1 and args.recipe[0] == "all":
-            self.recipes = []
-        else:
-            self.recipes = args.recipe
-
-        # to filter recipes in upgrade
-        if not self.recipes and self.opts['layer_mode'] == 'yes':
+        if len(args.recipe) == 1 and args.recipe[0] == "all" and self.opts['layer_mode'] != 'yes':
+            self.recipes = [('', [])]
+        elif self.opts['layer_mode'] == 'yes':
             # when layer mode is enabled and no recipes are specified
             # we need to figure out what recipes are provided by the
             # layer to try upgrade
-            self.recipes = self._get_recipes_by_layer()
-
+            self.recipes = []
+            for layer in self.opts['layer_name'].split(' '):
+                recipes_for_layer = self._get_recipes_by_layer(layer)
+                I("layer %s => Recipes %s", layer, recipes_for_layer)
+                self.recipes.append((layer, recipes_for_layer))
+        else:
+            self.recipes = [('', args.recipe)]
+            
         if args.to_version:
             if len(self.recipes) != 1:
                 E(" -t is only supported when upgrade one recipe\n")
                 exit(1)
 
-    def _get_recipes_by_layer(self):
+    def _get_recipes_by_layer(self, layer=''):
         recipes = []
 
         recipe_regex = re.compile('^(?P<name>.*):$')
@@ -620,7 +629,7 @@ class UniverseUpdater(Updater):
             if not 'skipped' in line:
                 s = layer_regex.search(line)
                 if s:
-                    if s.group('name').strip() == self.opts['layer_name']:
+                    if s.group('name').strip() == layer:
                         recipes.append(name)
 
         return recipes
@@ -673,7 +682,7 @@ class UniverseUpdater(Updater):
     def _get_packages_to_upgrade(self, packages=None):
     
         # Prepare a single pkg dict data (or None is not upgradable) from recipeutils.get_recipe_upgrade_status data.
-        def _get_pkg_to_upgrade(self, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason):
+        def _get_pkg_to_upgrade(self, layer_name, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason):
             pkg_to_upgrade = None
 
             if self.args.to_version:
@@ -683,6 +692,7 @@ class UniverseUpdater(Updater):
                 # Always do the upgrade if recipes are specified
                 if self.recipes and pn in self.recipes or self._pkg_upgradable(pn, next_ver, maintainer):
                     pkg_to_upgrade = {
+                        "layer_name": layer_name,
                         "pn": pn,
                         "cur_ver": cur_ver,
                         "next_ver": next_ver,
@@ -691,25 +701,27 @@ class UniverseUpdater(Updater):
                     }
             else:
                 if no_upgrade_reason:
-                    I(" Skip package %s (status = %s, current version = %s," \
+                    I(" Skip package %s/%s (status = %s, current version = %s," \
                         " next version = %s, no upgrade reason = %s)" %
-                         (pn, status, cur_ver, next_ver, no_upgrade_reason))
+                        (layer_name, pn, status, cur_ver, next_ver, no_upgrade_reason))
                 else:
-                    I(" Skip package %s (status = %s, current version = %s," \
+                    I(" Skip package %s/%s (status = %s, current version = %s," \
                         " next version = %s)" %
-                        (pn, status, cur_ver, next_ver))
+                        (layer_name, pn, status, cur_ver, next_ver))
 
             return pkg_to_upgrade
 
-        pkgs = oe.recipeutils.get_recipe_upgrade_status(self.recipes)
-
         pkgs_list = []
-        for pkg in pkgs:
-            pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason = pkg
 
-            pkg_to_upgrade = _get_pkg_to_upgrade(self, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason)
-            if pkg_to_upgrade:
-                pkgs_list.append(pkg_to_upgrade)
+        for layer_name, layer_recipes in self.recipes:
+            pkgs = oe.recipeutils.get_recipe_upgrade_status(layer_recipes)
+
+            for pkg in pkgs:
+                pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason = pkg
+
+                pkg_to_upgrade = _get_pkg_to_upgrade(self, layer_name, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason)
+                if pkg_to_upgrade:
+                    pkgs_list.append(pkg_to_upgrade)
 
         return pkgs_list
 
@@ -754,6 +766,14 @@ if __name__ == "__main__":
     log.basicConfig(format='%(levelname)s:%(message)s',
                     level=debug_levels[args.debug_level - 1])
     settings, maintainer_override = parse_config_file(args.config_file)
+    if args.layer_names != '' and args.layer_dir == '':
+        E("layer-dir is mandatory if layers are defined")
+        exit(1)
+    elif args.layer_names != '':
+        settings['layer_mode'] = 'yes'
+        settings['layer_dir'] = args.layer_dir
+        settings['layer_name'] = ' '.join(args.layer_names)
+        settings['layer_machines'] = ' '.join(args.layer_machines)
 
     updater = UniverseUpdater(args)
     updater.run()
