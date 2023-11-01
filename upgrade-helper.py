@@ -677,7 +677,7 @@ class UniverseUpdater(Updater):
             pkg_to_upgrade = None
 
             if self.args.to_version:
-                 next_ver = self.args.to_version
+                next_ver = self.args.to_version
 
             if status == 'UPDATE' and not no_upgrade_reason:
                 # Always do the upgrade if recipes are specified
