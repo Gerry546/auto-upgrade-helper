@@ -440,15 +440,23 @@ class Updater(object):
         pkgs_ctx = {}
 
         I(" ########### The list of recipes to be upgraded #############")
-        for p, ov, nv, m, r in pkgs_to_upgrade:
-            I(" %s, %s, %s, %s, %s" % (p, ov, nv, m, r))
+        for pkg_to_upgrade in pkgs_to_upgrade:
+            I(" %s, %s, %s, %s, %s" % (
+                pkg_to_upgrade["pn"],
+                pkg_to_upgrade["cur_ver"],
+                pkg_to_upgrade["next_ver"],
+                pkg_to_upgrade["maintainer"],
+                pkg_to_upgrade["revision"],
+            ))
+
+            p = pkg_to_upgrade["pn"]
 
             pkgs_ctx[p] = {}
             pkgs_ctx[p]['PN'] = p
-            pkgs_ctx[p]['PV'] = ov
-            pkgs_ctx[p]['NPV'] = nv
-            pkgs_ctx[p]['MAINTAINER'] = m
-            pkgs_ctx[p]['NSRCREV'] = r
+            pkgs_ctx[p]['PV'] = pkg_to_upgrade["cur_ver"]
+            pkgs_ctx[p]['NPV'] = pkg_to_upgrade["next_ver"]
+            pkgs_ctx[p]['MAINTAINER'] = pkg_to_upgrade["maintainer"]
+            pkgs_ctx[p]['NSRCREV'] = pkg_to_upgrade["revision"]
 
             pkgs_ctx[p]['base_dir'] = self.uh_recipes_all_dir
         I(" ############################################################")
@@ -471,7 +479,8 @@ class Updater(object):
         succeeded_pkgs_ctx = []
         failed_pkgs_ctx = []
         attempted_pkgs = 0
-        for pn, _, _, _, _ in pkgs_to_upgrade:
+        for pkg_to_upgrade in pkgs_to_upgrade:
+            pn = pkg_to_upgrade["pn"]
             pkg_ctx = pkgs_ctx[pn]
             pkg_ctx['error'] = None
 
@@ -675,7 +684,14 @@ class UniverseUpdater(Updater):
             if status == 'UPDATE' and not no_upgrade_reason:
                 # Always do the upgrade if recipes are specified
                 if self.recipes and pn in self.recipes or self._pkg_upgradable(pn, next_ver, maintainer):
-                    pkgs_list.append((pn, cur_ver, next_ver, maintainer, revision))
+                    pkg_to_upgrade = {
+                        "pn": pn,
+                        "cur_ver": cur_ver,
+                        "next_ver": next_ver,
+                        "maintainer": maintainer,
+                        "revision": revision
+                    }
+                    pkgs_list.append(pkg_to_upgrade)
             else:
                 if no_upgrade_reason:
                     I(" Skip package %s (status = %s, current version = %s," \
