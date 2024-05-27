@@ -262,7 +262,7 @@ class Updater(object):
         enabled = False
 
         if settings.get("testimage", "no") == "yes":
-            if 'testimage' in self.base_env['INHERIT']:
+            if 'testimage' in self.base_env['IMAGE_CLASSES']:
                 if not "ptest" in self.base_env["DISTRO_FEATURES"]:
                     E(" testimage requires ptest in DISTRO_FEATURES please add to"\
                       " conf/local.conf.")
@@ -271,8 +271,8 @@ class Updater(object):
                 enabled = True
             else:
                 E(" testimage was enabled in upgrade-helper.conf"\
-                  " but isn't INHERIT in conf/local.conf, if you want"\
-                  " to enable please set.")
+                  " but isn't added to IMAGE_CLASSES in conf/local.conf, \
+                    if you want to enable please set.")
                 exit(1)
 
         return enabled
