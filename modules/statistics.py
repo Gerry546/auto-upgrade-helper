@@ -33,7 +33,7 @@ class Statistics(object):
         self.maintainers = set()
         self.total_attempted = 0
 
-    def update(self, pn, new_ver, maintainer, error):
+    def _update(self, pn, new_ver, maintainer, error):
         if type(error).__name__ == "UpgradeNotNeededError":
             return
         elif error is None:
@@ -62,6 +62,10 @@ class Statistics(object):
             self.failed[maintainer] += 1
 
         self.total_attempted += 1
+
+    def update(self, group):
+        for p in group['pkgs']:
+            self._update(p['PN'],p['NPV'],p['MAINTAINER'],group['error'])
 
     def _pkg_stats(self):
         stat_msg = "Recipe upgrade statistics:\n\n"

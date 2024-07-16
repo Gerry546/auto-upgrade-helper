@@ -33,15 +33,16 @@ from utils.git import Git
 from utils.bitbake import *
 
 class BuildHistory(object):
-    def __init__(self, bb, pn, workdir):
+    def __init__(self, bb, group):
         self.bb = bb
-        self.pn = pn
-        self.workdir = workdir
+        self.group = group
+        self.pns = " ".join([p['PN'] for p in group['pkgs']])
+        self.workdir = group['workdir']
 
     def init(self, machines):
         for machine in machines:
             try:
-                self.bb.complete(self.pn, machine)
+                self.bb.complete(self.pns, machine)
             except Error as e:
                 for line in e.stdout.split("\n") + e.stderr.split("\n"):
                     # version going backwards is not a real error
@@ -67,4 +68,4 @@ class BuildHistory(object):
                         "w+") as log:
                     log.write(stdout)
         except bb.process.ExecutionError as e:
-            W( "%s: Buildhistory checking fails\n%s" % (self.pn, e.stdout))
+            W( "%s: Buildhistory checking fails\n%s" % (self.group['name'], e.stdout))

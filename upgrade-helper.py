@@ -277,18 +277,18 @@ class Updater(object):
 
         return enabled
 
-    def _get_packages_to_upgrade(self, packages=None):
+    def _get_packagegroups_to_upgrade(self, packages=None):
         if packages is None:
             I( "Nothing to upgrade")
             exit(0)
         else:
-            return packages
+            return [[p] for p in packages]
 
-    # this function will be called at the end of each recipe upgrade
-    def pkg_upgrade_handler(self, pkg_ctx):
+    # this function will be called at the end of each recipe group upgrade
+    def pkg_upgrade_handler(self, g):
         mail_header = \
             "Hello,\n\nthis email is a notification from the Auto Upgrade Helper\n" \
-            "that the automatic attempt to upgrade the recipe *%s* to *%s* has %s.\n\n"
+            "that the automatic attempt to upgrade the recipe(s) *%s* to *%s* has %s.\n\n"
 
         license_change_info = \
             "*LICENSE CHANGED* please review the %s file, update the LICENSE\n" \
@@ -313,51 +313,57 @@ class Updater(object):
             "Any problem please file a bug at https://bugzilla.yoctoproject.org/enter_bug.cgi?product=Automated%20Update%20Handler\n\n" \
             "Regards,\nThe Upgrade Helper"
 
-        if pkg_ctx['MAINTAINER'] in maintainer_override:
-            to_addr = maintainer_override[pkg_ctx['MAINTAINER']]
-        elif 'global_maintainer_override' in settings:
-            to_addr = settings['global_maintainer_override']
+        to_addr = []
+        cc_addr = []
+        if 'global_maintainer_override' in settings:
+            to_addr = [settings['global_maintainer_override']]
         else:
-            to_addr = pkg_ctx['MAINTAINER']
+            for p in g['pkgs']:
+                maintainer = p['MAINTAINER']
+                if maintainer in maintainer_override:
+                    maintainer = maintainer_override[maintainer]
+                if 'unassigned' not in maintainer:
+                    to_addr.append(maintainer)
 
-        cc_addr = None
         if "cc_recipients" in settings:
-            if 'unassigned' in to_addr:
+            if not to_addr:
                 to_addr = settings["cc_recipients"].split()
             else:
                 cc_addr = settings["cc_recipients"].split()
 
-        newversion = pkg_ctx['NPV'] if not pkg_ctx['NPV'].endswith("new-commits-available") else pkg_ctx['NSRCREV']
-        subject = "[AUH] " + pkg_ctx['PN'] + ": upgrading to " + newversion
-        if not pkg_ctx['error']:
+        newversions = ",".join([pkg_ctx['NPV'] if not pkg_ctx['NPV'].endswith("new-commits-available") else pkg_ctx['NSRCREV'] for pkg_ctx in g['pkgs']])
+        pns = ",".join([pkg_ctx['PN'] for pkg_ctx in g['pkgs']])
+        subject = "[AUH] " + pns + ": upgrading to " + newversions
+        if not g['error']:
             subject += " SUCCEEDED"
         else:
             subject += " FAILED"
-        msg_body = mail_header % (pkg_ctx['PN'], newversion,
-                self._get_status_msg(pkg_ctx['error']))
+        msg_body = mail_header % (pns, newversions,
+                self._get_status_msg(g['error']))
 
-        if pkg_ctx['error'] is not None:
+        e = g['error']
+        if e is not None:
             msg_body += """Detailed error information:
 
 %s
 %s
 %s
 
-""" %(pkg_ctx['error'].message if pkg_ctx['error'].message else "", pkg_ctx['error'].stdout if pkg_ctx['error'].stdout else "" , pkg_ctx['error'].stderr if pkg_ctx['error'].stderr else "")
+""" %(e.message if e.message else "", e.stdout if e.stdout else "" , e.stderr if e.stderr else "")
 
-        if 'license_diff_fn' in pkg_ctx:
-            license_diff_fn = pkg_ctx['license_diff_fn']
-            msg_body += license_change_info % license_diff_fn
+        license_diffs = "\n".join([pkg_ctx['license_diff_fn'] for pkg_ctx in g['pkgs'] if 'license_diff_fn' in pkg_ctx])
+        if license_diffs:
+            msg_body += license_change_info % license_diffs
 
-        if 'patch_file' in pkg_ctx and pkg_ctx['patch_file'] != None:
-            msg_body += next_steps_info % (os.path.basename(pkg_ctx['patch_file']))
+        if 'patch_file' in g and g['patch_file'] != None:
+            msg_body += next_steps_info % (os.path.basename(g['patch_file']))
 
         msg_body += mail_footer
 
         # Add possible attachments to email
         attachments = []
-        for attachment in os.listdir(pkg_ctx['workdir']):
-            attachment_fullpath = os.path.join(pkg_ctx['workdir'], attachment)
+        for attachment in os.listdir(g['workdir']):
+            attachment_fullpath = os.path.join(g['workdir'], attachment)
             if os.path.isfile(attachment_fullpath):
                 attachments.append(attachment_fullpath)
                 # Also add the patch inline using the 'scissors':
@@ -368,7 +374,7 @@ class Updater(object):
         if self.opts['send_email']:
             self.email_handler.send_email(to_addr, subject, msg_body, attachments, cc_addr=cc_addr)
         # Preserve email for review purposes.
-        email_file = os.path.join(pkg_ctx['workdir'],
+        email_file = os.path.join(g['workdir'],
                     "email_summary")
         with open(email_file, "w+") as f:
             f.write("To: %s\n" % to_addr)
@@ -381,26 +387,28 @@ class Updater(object):
             f.write("Attachments: %s\n" % ' '.join(attachments))
             f.write("\n%s\n" % msg_body)
 
-    def commit_changes(self, pkg_ctx):
+    def commit_changes(self, g):
         try:
-            pkg_ctx['patch_file'] = None
+            g['patch_file'] = None
+            pns = ",".join([pkg_ctx['PN'] for pkg_ctx in g['pkgs']])
 
-            I(" %s: Auto commit changes ..." % pkg_ctx['PN'])
-            self.git.add(pkg_ctx['recipe_dir'])
-            self.git.commit(pkg_ctx['commit_msg'], self.opts['author'])
+            I(" %s: Auto commit changes ..." % pns)
+            for p in g['pkgs']:
+                self.git.add(p['recipe_dir'])
+            self.git.commit(g['commit_msg'], self.opts['author'])
 
-            stdout = self.git.create_patch(pkg_ctx['workdir'])
-            pkg_ctx['patch_file'] = stdout.strip()
+            stdout = self.git.create_patch(g['workdir'])
+            g['patch_file'] = stdout.strip()
 
-            if not pkg_ctx['patch_file']:
+            if not g['patch_file']:
                 msg = "Patch file not generated."
-                E(" %s: %s\n %s" % (pkg_ctx['PN'], msg, stdout))
+                E(" %s: %s\n %s" % (pns, msg, stdout))
                 raise Error(msg, stdout)
             else:
                 I(" %s: Save patch in directory: %s." %
-                    (pkg_ctx['PN'], pkg_ctx['workdir']))
+                    (pns, g['workdir']))
             revert_policy = settings.get('commit_revert_policy', 'failed_to_build')
-            if (pkg_ctx['error'] is not None and revert_policy == 'failed_to_build'):
+            if (g['error'] is not None and revert_policy == 'failed_to_build'):
                 I("Due to build errors, the commit will also be reverted to avoid cascading upgrade failures.")
                 self.git.revert("HEAD")
             elif revert_policy == 'all':
@@ -412,9 +420,9 @@ class Updater(object):
             for line in e.stdout.split("\n"):
                 if line.find("nothing to commit") == 0:
                     msg = "Nothing to commit!"
-                    I(" %s: %s" % (pkg_ctx['PN'], msg))
+                    I(" %s: %s" % (pns, msg))
 
-            I(" %s: %s" % (pkg_ctx['PN'], e.stdout))
+            I(" %s: %s" % (pns, e.stdout))
             raise e
 
     def send_status_mail(self, statistics_summary, attachments):
@@ -436,35 +444,35 @@ class Updater(object):
             W("No recipes attempted, not sending status mail!")
 
     def run(self, package_list=None):
-        pkgs_to_upgrade = self._get_packages_to_upgrade(package_list)
-        total_pkgs = len(pkgs_to_upgrade)
+        pkggroups_to_upgrade = self._get_packagegroups_to_upgrade(package_list)
+        total_pkggroups = len(pkggroups_to_upgrade)
 
-        pkgs_ctx = {}
-
+        pkggroups_ctx = []
         I(" ########### The list of recipes to be upgraded #############")
-        for pkg_to_upgrade in pkgs_to_upgrade:
-            I(" %s, %s, %s, %s, %s, %s" % (
-                pkg_to_upgrade["layer_name"],
-                pkg_to_upgrade["pn"],
-                pkg_to_upgrade["cur_ver"],
-                pkg_to_upgrade["next_ver"],
-                pkg_to_upgrade["maintainer"],
-                pkg_to_upgrade["revision"],
-            ))
+        for pkgs_to_upgrade in pkggroups_to_upgrade:
+            pkgs_ctx = []
 
-            p = pkg_to_upgrade["pn"]
+            for pkg_to_upgrade in pkgs_to_upgrade:
+                I(" %s, %s, %s, %s, %s, %s" % (
+                    pkg_to_upgrade["layer_name"],
+                    pkg_to_upgrade["pn"],
+                    pkg_to_upgrade["cur_ver"],
+                    pkg_to_upgrade["next_ver"],
+                    pkg_to_upgrade["maintainer"],
+                    pkg_to_upgrade["revision"],
+                ))
 
-            pkgs_ctx[p] = {}
-            pkgs_ctx[p]['PN'] = p
-            pkgs_ctx[p]['PV'] = pkg_to_upgrade["cur_ver"]
-            pkgs_ctx[p]['NPV'] = pkg_to_upgrade["next_ver"]
-            pkgs_ctx[p]['MAINTAINER'] = pkg_to_upgrade["maintainer"]
-            pkgs_ctx[p]['NSRCREV'] = pkg_to_upgrade["revision"]
+                pkg_ctx = {}
+                pkg_ctx['PN'] = pkg_to_upgrade["pn"]
+                pkg_ctx['PV'] = pkg_to_upgrade["cur_ver"]
+                pkg_ctx['NPV'] = pkg_to_upgrade["next_ver"]
+                pkg_ctx['MAINTAINER'] = pkg_to_upgrade["maintainer"]
+                pkg_ctx['NSRCREV'] = pkg_to_upgrade["revision"]
+                pkgs_ctx.append(pkg_ctx)
 
-            pkgs_ctx[p]['base_dir'] = self.uh_recipes_all_dir
+            pkggroups_ctx.append({"name":",".join([pkg_ctx['PN'] for pkg_ctx in pkgs_ctx]),"pkgs":pkgs_ctx,"error":None, 'base_dir':self.uh_recipes_all_dir})
         I(" ############################################################")
-
-        if pkgs_to_upgrade and not self.args.skip_compilation:
+        if pkggroups_ctx and not self.args.skip_compilation:
             I(" Building gcc runtimes ...")
             for machine in self.opts['machines']:
                 I("  building gcc runtime for %s" % machine)
@@ -479,30 +487,28 @@ class Updater(object):
                         import traceback
                         traceback.print_exc(file=sys.stdout)
 
-        succeeded_pkgs_ctx = []
-        failed_pkgs_ctx = []
-        attempted_pkgs = 0
-        for pkg_to_upgrade in pkgs_to_upgrade:
-            pn = pkg_to_upgrade["pn"]
-            pkg_ctx = pkgs_ctx[pn]
-            pkg_ctx['error'] = None
-
-            attempted_pkgs += 1
-            I(" ATTEMPT PACKAGE %d/%d" % (attempted_pkgs, total_pkgs))
+        succeeded_pkggroups_ctx = []
+        failed_pkggroups_ctx = []
+        attempted_pkggroups = 0
+        for g in pkggroups_ctx:
+            attempted_pkggroups += 1
+            pkggroup_name = g["name"]
+            I(" ATTEMPT PACKAGE GROUP %d/%d" % (attempted_pkggroups, total_pkggroups))
             try:
-                I(" %s: Upgrading to %s" % (pkg_ctx['PN'], pkg_ctx['NPV']))
+                for pkg_ctx in g['pkgs']:
+                    I(" %s: Upgrading to %s" % (pkg_ctx['PN'], pkg_ctx['NPV']))
                 for step, msg in upgrade_steps:
                     if msg is not None:
-                        I(" %s: %s" % (pkg_ctx['PN'], msg))
-                    step(self.devtool, self.bb, self.git, self.opts, pkg_ctx)
-                succeeded_pkgs_ctx.append(pkg_ctx)
+                        I(" %s: %s" % (pkggroup_name, msg))
+                    step(self.devtool, self.bb, self.git, self.opts, g)
+                succeeded_pkggroups_ctx.append(g)
 
-                I(" %s: Upgrade SUCCESSFUL! Please test!" % pkg_ctx['PN'])
+                I(" %s: Upgrade SUCCESSFUL! Please test!" % pkggroup_name)
             except Exception as e:
                 if isinstance(e, UpgradeNotNeededError):
-                    I(" %s: %s" % (pkg_ctx['PN'], e.message))
+                    I(" %s: %s" % (pkggroup_name, e.message))
                 elif isinstance(e, UnsupportedProtocolError):
-                    I(" %s: %s" % (pkg_ctx['PN'], e.message))
+                    I(" %s: %s" % (pkggroup_name, e.message))
                 else:
                     if not isinstance(e, Error):
                         import traceback
@@ -510,47 +516,47 @@ class Updater(object):
                         e = Error(message=msg)
                         error = e
 
-                    E(" %s: %s" % (pkg_ctx['PN'], e.message))
+                    E(" %s: %s" % (pkggroup_name, e.message))
 
-                    if 'workdir' in pkg_ctx and os.listdir(pkg_ctx['workdir']):
+                    if 'workdir' in g and os.listdir(g['workdir']):
                         E(" %s: Upgrade FAILED! Logs and/or file diffs are available in %s"
-                            % (pkg_ctx['PN'], pkg_ctx['workdir']))
+                            % (pkggroup_name, g['workdir']))
 
-                pkg_ctx['error'] = e
-                failed_pkgs_ctx.append(pkg_ctx)
+                g['error'] = e
+                failed_pkggroups_ctx.append(g)
 
             try:
-                self.commit_changes(pkg_ctx)
-            except:
-                if pkg_ctx in succeeded_pkgs_ctx:
-                    succeeded_pkgs_ctx.remove(pkg_ctx)
-                    failed_pkgs_ctx.append(pkg_ctx)
+                self.commit_changes(g)
+            except Exception as e:
+                import traceback
+                E(" Couldn't commit changes to %s:\n%s" % (pkggroup_name, traceback.format_exc()))
+                if g in succeeded_pkggroups_ctx:
+                    succeeded_pkggroups_ctx.remove(g)
+                    failed_pkggroups_ctx.append(g)
 
         if self.opts['testimage']:
             ctxs = {}
-            ctxs['succeeded'] = succeeded_pkgs_ctx
-            ctxs['failed'] = failed_pkgs_ctx
+            ctxs['succeeded'] = succeeded_pkggroups_ctx
+            ctxs['failed'] = failed_pkggroups_ctx
             image = settings.get('testimage_name', DEFAULT_TESTIMAGE)
             tim = TestImage(self.bb, self.git, self.uh_work_dir, self.opts,
                    ctxs, image)
 
             tim.run()
 
-        for pn in pkgs_ctx.keys():
-            pkg_ctx = pkgs_ctx[pn]
+        for g in pkggroups_ctx:
 
-            if pkg_ctx in succeeded_pkgs_ctx:
-                os.symlink(pkg_ctx['workdir'], os.path.join( \
-                    self.uh_recipes_succeed_dir, pkg_ctx['PN']))
+            if g in succeeded_pkggroups_ctx:
+                os.symlink(g['workdir'], os.path.join( \
+                    self.uh_recipes_succeed_dir, g['name']))
             else:
-                os.symlink(pkg_ctx['workdir'], os.path.join( \
-                    self.uh_recipes_failed_dir, pkg_ctx['PN']))
+                os.symlink(g['workdir'], os.path.join( \
+                    self.uh_recipes_failed_dir, g['name']))
 
-            self.statistics.update(pkg_ctx['PN'], pkg_ctx['NPV'],
-                    pkg_ctx['MAINTAINER'], pkg_ctx['error'])
-            self.pkg_upgrade_handler(pkg_ctx)
+            self.statistics.update(g)
+            self.pkg_upgrade_handler(g)
 
-        if attempted_pkgs > 0:
+        if attempted_pkggroups > 0:
             publish_work_url = settings.get('publish_work_url', '')
             attach_tarball = settings.get('summary_includes_tarball', True)
             work_tarball = os.path.join(self.uh_base_work_dir,
@@ -666,17 +672,10 @@ class UniverseUpdater(Updater):
                         (pn, maintainer))
                 return False
 
-        # drop native/cross/cross-canadian recipes. We deal with native
-        # when upgrading the main recipe but we keep away of cross* pkgs...
-        # for now
-        if pn.find("cross") != -1 or pn.find("native") != -1:
-            D(" Skipping upgrade of %s: is cross or native" % pn)
-            return False
-
         return True
 
-    def _get_packages_to_upgrade(self, packages=None):
-    
+    def _get_packagegroups_to_upgrade(self, packages=None):
+
         # Prepare a single pkg dict data (or None is not upgradable) from recipeutils.get_recipe_upgrade_status data.
         def _get_pkg_to_upgrade(self, layer_name, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason):
             pkg_to_upgrade = None
@@ -685,8 +684,7 @@ class UniverseUpdater(Updater):
                 next_ver = self.args.to_version
 
             if status == 'UPDATE' and not no_upgrade_reason:
-                # Always do the upgrade if recipes are specified
-                if self.recipes and pn in self.recipes or self._pkg_upgradable(pn, next_ver, maintainer):
+                if self._pkg_upgradable(pn, next_ver, maintainer):
                     pkg_to_upgrade = {
                         "layer_name": layer_name,
                         "pn": pn,
@@ -707,19 +705,20 @@ class UniverseUpdater(Updater):
 
             return pkg_to_upgrade
 
-        pkgs_list = []
+        upgrade_pkggroups = []
 
         for layer_name, layer_recipes in self.recipes:
-            pkgs = oe.recipeutils.get_recipe_upgrade_status(layer_recipes)
+            pkggroups = oe.recipeutils.get_recipe_upgrade_status(layer_recipes)
 
-            for pkg in pkgs:
-                pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason = pkg
-
-                pkg_to_upgrade = _get_pkg_to_upgrade(self, layer_name, pn, status, cur_ver, next_ver, maintainer, revision, no_upgrade_reason)
-                if pkg_to_upgrade:
-                    pkgs_list.append(pkg_to_upgrade)
-
-        return pkgs_list
+            for group in pkggroups:
+                upgrade_group = []
+                for pkg in group:
+                    pkg_to_upgrade = _get_pkg_to_upgrade(self, layer_name, pkg['pn'], pkg['status'], pkg['cur_ver'], pkg['next_ver'], pkg['maintainer'], pkg['revision'], pkg['no_upgrade_reason'])
+                    if pkg_to_upgrade:
+                        upgrade_group.append(pkg_to_upgrade)
+                if upgrade_group:
+                    upgrade_pkggroups.append(upgrade_group)
+        return upgrade_pkggroups
 
     def pkg_upgrade_handler(self, pkg_ctx):
         super(UniverseUpdater, self).pkg_upgrade_handler(pkg_ctx)

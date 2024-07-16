@@ -42,12 +42,12 @@ def _pn_in_pkgs_ctx(pn, pkgs_ctx):
     return None
 
 class TestImage():
-    def __init__(self, bb, git, uh_work_dir, opts, packages, image):
+    def __init__(self, bb, git, uh_work_dir, opts, groups, image):
         self.bb = bb
         self.git = git
         self.uh_work_dir = uh_work_dir
         self.opts = opts
-        self.pkgs_ctx = packages['succeeded']
+        self.groups = groups['succeeded']
         self.image = image
 
         self.logdir = os.path.join(uh_work_dir, "testimage-logs")
@@ -56,22 +56,23 @@ class TestImage():
         os.environ['BB_ENV_PASSTHROUGH_ADDITIONS'] = os.environ['BB_ENV_PASSTHROUGH_ADDITIONS'] + \
             " CORE_IMAGE_EXTRA_INSTALL TEST_LOG_DIR TESTIMAGE_UPDATE_VARS"
 
-    def _get_pkgs_to_install(self, pkgs):
+    def _get_pkgs_to_install(self, groups):
         pkgs_out = []
 
-        for c in pkgs:
-            pkgs_out.append(c['PN'])
+        for g in groups:
+            for c in g['pkgs']:
+                pkgs_out.append(c['PN'])
 
-            I(" Checking if package {} has ptests...".format(c['PN']))
-            if 'PTEST_ENABLED' in self.bb.env(c['PN']):
-                I("  ...yes")
-                pkgs_out.append((c['PN']) + '-ptest')
-            else:
-                I("  ...no")
+                I(" Checking if package {} has ptests...".format(c['PN']))
+                if 'PTEST_ENABLED' in self.bb.env(c['PN']):
+                    I("  ...yes")
+                    pkgs_out.append((c['PN']) + '-ptest')
+                else:
+                    I("  ...no")
 
         return ' '.join(pkgs_out)
 
-    def testimage(self, pkgs_ctx, machine, image):
+    def testimage(self, groups, machine, image):
         os.environ['CORE_IMAGE_EXTRA_INSTALL'] = \
             self._get_pkgs_to_install(pkgs_ctx)
         os.environ['TEST_LOG_DIR'] = self.logdir
@@ -105,4 +106,4 @@ class TestImage():
     def run(self):
         machine = self.opts['machines'][0]
         I("  Testing image for %s ..." % machine)
-        self.testimage(self.pkgs_ctx, machine, self.image)
+        self.testimage(self.groups, machine, self.image)

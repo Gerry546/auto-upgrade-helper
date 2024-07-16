@@ -37,6 +37,6 @@ class Devtool(object):
         if recipe:
             cmd = " reset -n " + recipe
         else:
-            cmd = " reset -a"
+            cmd = " reset -n -a"
         return self._cmd(cmd)
 
