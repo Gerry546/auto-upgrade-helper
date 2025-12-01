@@ -124,9 +124,10 @@ class Bitbake(object):
     def complete(self, recipe, machine):
         if "_" in machine:
             machine, libc = machine.split("_")
-            env = "MACHINE={} TCLIBC={}".format(machine, libc)
+            env = "TCLIBC={}".format(libc)
         else:
-            env = "MACHINE={}".format(machine)
+            env = ""
+        bb.process.run("bitbake-config-build enable-fragment machine/{}".format(machine))
         return self._cmd(recipe, env_var=env)
 
     def dependency_graph(self, package_list):
