@@ -74,7 +74,7 @@ class TestImage():
 
     def testimage(self, groups, machine, image):
         os.environ['CORE_IMAGE_EXTRA_INSTALL'] = \
-            self._get_pkgs_to_install(pkgs_ctx)
+            self._get_pkgs_to_install(groups)
         os.environ['TEST_LOG_DIR'] = self.logdir
         os.environ['TESTIMAGE_UPDATE_VARS'] = 'TEST_LOG_DIR'
         I( " Installing additional packages to the image: {}".format(os.environ['CORE_IMAGE_EXTRA_INSTALL']))
