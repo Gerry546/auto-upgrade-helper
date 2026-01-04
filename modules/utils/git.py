@@ -26,7 +26,8 @@
 import os
 from logging import debug as D
 
-from utils.bitbake import *
+from utils.bitbake import bb
+from errors import Error
 
 class Git(object):
     def __init__(self, dir):

@@ -49,11 +49,11 @@ import shutil
 sys.path.insert(1, os.path.join(os.path.abspath(
     os.path.dirname(__file__)), 'modules'))
 
-from errors import *
+from errors import Error, EmptyEnvError, UpgradeNotNeededError, UnsupportedProtocolError
 
 from utils.git import Git
 from utils.devtool import Devtool
-from utils.bitbake import *
+from utils.bitbake import Bitbake, get_build_dir
 from utils.emailhandler import Email
 
 from statistics import Statistics
@@ -66,7 +66,6 @@ if not os.getenv('BUILDDIR', False):
     E(" $ . oe-init-build-env build-auh\n")
     exit(1)
 
-import shutil
 # Use the location of devtool to find scriptpath and hence bb/oe libs
 scripts_path = os.path.abspath(os.path.dirname(shutil.which("devtool")))
 sys.path = sys.path + [scripts_path + '/lib']
@@ -235,7 +234,7 @@ class Updater(object):
 
         if settings.get("buildhistory", "no") == "yes":
             if 'buildhistory' in self.base_env['INHERIT']:
-                if not 'BUILDHISTORY_COMMIT' in self.base_env:
+                if 'BUILDHISTORY_COMMIT' not in self.base_env:
                     E(" Buildhistory was INHERIT in conf/local.conf"\
                       " but need BUILDHISTORY_COMMIT=1 please set.")
                     exit(1)
@@ -263,7 +262,7 @@ class Updater(object):
 
         if settings.get("testimage", "no") == "yes":
             if 'testimage' in self.base_env['IMAGE_CLASSES']:
-                if not "ptest" in self.base_env["DISTRO_FEATURES"]:
+                if "ptest" not in self.base_env["DISTRO_FEATURES"]:
                     E(" testimage requires ptest in DISTRO_FEATURES please add to"\
                       " conf/local.conf.")
                     exit(1)
@@ -355,7 +354,7 @@ class Updater(object):
         if license_diffs:
             msg_body += license_change_info % license_diffs
 
-        if 'patch_file' in g and g['patch_file'] != None:
+        if 'patch_file' in g and g['patch_file'] is not None:
             msg_body += next_steps_info % (os.path.basename(g['patch_file']))
 
         msg_body += mail_footer
@@ -514,7 +513,6 @@ class Updater(object):
                         import traceback
                         msg = "Failed(unknown error)\n" + traceback.format_exc()
                         e = Error(message=msg)
-                        error = e
 
                     E(" %s: %s" % (pkggroup_name, e.message))
 
@@ -617,7 +615,6 @@ class UniverseUpdater(Updater):
         recipe_regex = re.compile('^(?P<name>.*):$')
         layer_regex = re.compile('^  (?P<name>.*) +')
 
-        layers = False
         name = ''
 
         output = subprocess.check_output('bitbake-layers show-recipes',
@@ -628,7 +625,7 @@ class UniverseUpdater(Updater):
                 name = s.group('name')
                 continue
 
-            if not 'skipped' in line:
+            if 'skipped' not in line:
                 s = layer_regex.search(line)
                 if s:
                     if s.group('name').strip() == layer:
@@ -667,7 +664,7 @@ class UniverseUpdater(Updater):
                     found = True
                     break
 
-            if found == False:
+            if not found:
                 D(" Skipping upgrade of %s: maintainer \"%s\" not in whitelist" %
                         (pn, maintainer))
                 return False

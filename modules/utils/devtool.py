@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 from logging import debug as D
 
-from utils.bitbake import *
+from utils.bitbake import bb
+from errors import DevtoolError
 
 class Devtool(object):
     def __init__(self):

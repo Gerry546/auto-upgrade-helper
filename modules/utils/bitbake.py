@@ -28,7 +28,7 @@ from logging import debug as D
 import sys
 import re
 
-from errors import *
+from errors import Error, EmptyEnvError
 
 for path in os.environ["PATH"].split(':'):
     if os.path.exists(path) and "bitbake" in os.listdir(path):

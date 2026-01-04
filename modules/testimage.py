@@ -25,8 +25,7 @@ import os
 
 from logging import info as I
 
-from errors import *
-from utils.bitbake import *
+from errors import Error
 
 def _pn_in_pkgs_ctx(pn, pkgs_ctx):
     for c in pkgs_ctx:

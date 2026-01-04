@@ -27,7 +27,7 @@ from logging import debug as D
 from logging import info as I
 from logging import warning as W
 
-from errors import *
+from errors import Error, DevtoolError, CompilationError
 from buildhistory import BuildHistory
 
 def load_env(devtool, bb, git, opts, group):
@@ -59,9 +59,9 @@ def _extract_license_diff(devtool_output):
                 for line in lines:
                      if line.startswith(b'# FIXME: the LIC_FILES_CHKSUM'):
                          extracting = True
-                     elif extracting == True and not line.startswith(b'#') and len(line) > 1:
+                     elif extracting and not line.startswith(b'#') and len(line) > 1:
                          extracting = False
-                     if extracting == True:
+                     if extracting:
                          licenseinfo.append(line[2:])
                      else:
                          f.write(line)
@@ -71,7 +71,7 @@ def _extract_license_diff(devtool_output):
 def _make_commit_msg(group):
     def _get_version(p):
         if p['NPV'].endswith("new-commits-available"):
-            return "to latest revision".format(p['PN'])
+            return "to latest revision"
         else:
             return "{} -> {}".format(p['PV'], p['NPV'])
 

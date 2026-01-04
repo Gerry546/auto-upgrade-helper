@@ -20,11 +20,11 @@
 #
 
 import os
+import re
 from logging import warning as W
 
-from errors import *
-from utils.git import Git
-from utils.bitbake import *
+from errors import Error
+from utils.bitbake import bb
 
 class BuildHistory(object):
     def __init__(self, bb, group):
