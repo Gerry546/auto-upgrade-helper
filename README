@@ -38,7 +38,7 @@ WARNING: if you are using the default maintainers.inc file supplied
          emails to the default maintainers. Please be careful not to
          do this :)
 
-4. If you want to enable buildhistory (optional) you need to enable it in
+3. If you want to enable buildhistory (optional) you need to enable it in
 upgrade-helper.conf, and also add the following lines to your conf/local.conf
 file:
 
@@ -52,7 +52,7 @@ $BUILDDIR/upgrade-helper/work/recipe/buildhistory-diff.txt.
 
 (Do not remove any other inherited class in the process).
 
-5. If you want to enable testimage (optional) you need to enable in
+4. If you want to enable testimage (optional) you need to enable in
 upgrade-helper.conf also add the following lines to your conf/local.conf
 file:
 
