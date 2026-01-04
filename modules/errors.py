@@ -109,5 +109,5 @@ class IntegrationError(Error):
                 % pkg_ctx['PN'], stdout)
         self.pkg_ctx = pkg_ctx
 
-        def __str__(self):
-            return "Failed(integrate)"
+    def __str__(self):
+        return "Failed(integrate)"
