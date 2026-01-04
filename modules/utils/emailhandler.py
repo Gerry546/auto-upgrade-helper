@@ -24,7 +24,6 @@
 #
 
 import os
-import logging as log
 from logging import error as E
 from logging import info as I
 from smtplib import SMTP
@@ -33,7 +32,6 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.generator import Generator
-import shutil
 from io import StringIO
 
 class Email(object):

@@ -24,11 +24,7 @@
 #
 
 import os
-import logging as log
-from logging import info as I
 from logging import debug as D
-from logging import error as E
-from logging import critical as C
 import sys
 import re
 

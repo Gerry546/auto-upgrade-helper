@@ -22,15 +22,8 @@
 #
 
 import os
-import sys
-import shutil
 
-import logging as log
-from logging import debug as D
 from logging import info as I
-from logging import warning as W
-from logging import error as E
-from logging import critical as C
 
 from errors import *
 from utils.bitbake import *

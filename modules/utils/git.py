@@ -24,7 +24,6 @@
 #
 
 import os
-import logging as log
 from logging import debug as D
 
 from utils.bitbake import *
