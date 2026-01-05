@@ -414,14 +414,12 @@ class Updater(object):
                 I("The commit will be reverted to follow the policy set in the configuration file.")
                 self.git.revert("HEAD")
         except Error as e:
-            msg = ''
-
-            for line in e.stdout.split("\n"):
-                if line.find("nothing to commit") == 0:
-                    msg = "Nothing to commit!"
-                    I(" %s: %s" % (pns, msg))
-
-            I(" %s: %s" % (pns, e.stdout))
+            out = (e.stdout or "")
+            err = (e.stderr or "")
+            combined = out + ("\n" if out and err else "") + err
+            if "nothing to commit" in combined:
+                I(" %s: nothing to commit" % pns)
+                return
             raise e
 
     def send_status_mail(self, statistics_summary, attachments):
