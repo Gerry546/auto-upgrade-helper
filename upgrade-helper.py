@@ -526,6 +526,8 @@ class Updater(object):
             except Exception as e:
                 import traceback
                 E(" Couldn't commit changes to %s:\n%s" % (pkggroup_name, traceback.format_exc()))
+                # Ensure commit failures are recorded as group errors
+                g['error'] = e
                 if g in succeeded_pkggroups_ctx:
                     succeeded_pkggroups_ctx.remove(g)
                     failed_pkggroups_ctx.append(g)
