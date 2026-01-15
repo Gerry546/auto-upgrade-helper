@@ -393,7 +393,8 @@ class Updater(object):
 
             I(" %s: Auto commit changes ..." % pns)
             for p in g['pkgs']:
-                self.git.add(p['recipe_dir'])
+                if 'recipe_dir' in p:
+                    self.git.add(p['recipe_dir'])
             self.git.commit(g['commit_msg'], self.opts['author'])
 
             stdout = self.git.create_patch(g['workdir'])
