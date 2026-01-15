@@ -32,6 +32,7 @@ from buildhistory import BuildHistory
 
 def load_env(devtool, bb, git, opts, group):
     group['workdir'] = os.path.join(group['base_dir'], group['name'])
+    group['commit_msg'] = _make_commit_msg(group)
     os.mkdir(group['workdir'])
     for pkg_ctx in group['pkgs']:
         pkg_ctx['env'] = bb.env(pkg_ctx['PN'])
@@ -100,7 +101,6 @@ def _devtool_upgrade(devtool, bb, git, opts, pkg_ctx):
 
 
 def devtool_upgrade(devtool, bb, git, opts, group):
-    group['commit_msg'] = _make_commit_msg(group)
     for p in group['pkgs']:
         _devtool_upgrade(devtool, bb, git, opts, p)
 
