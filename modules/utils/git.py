@@ -57,7 +57,7 @@ class Git(object):
         if author is None:
             return self._cmd("commit -a -s -m \"" + commit_message + "\"")
         else:
-            return self._cmd("commit -a --author=\"" + author + "\" -m \"" + commit_message + "\"")
+            return self._cmd("commit -a -s --author=\"" + author + "\" -m \"" + commit_message + "\"")
 
     def revert(self, commit):
         return self._cmd("revert --no-edit " + commit)
