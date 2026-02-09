@@ -30,13 +30,45 @@ from logging import warning as W
 from errors import Error, DevtoolError, CompilationError
 from buildhistory import BuildHistory
 
+
+def _find_layer_dir_for_recipe_file(bb_env, recipe_file):
+    """Find the layer directory owning recipe_file based on BitBake configuration.
+
+    Uses BBLAYERS from the recipe's BitBake environment and chooses the
+    longest-matching layer path prefix.
+    """
+    bblayers = (bb_env.get('BBLAYERS', '') or '').split()
+    if not bblayers or not recipe_file:
+        return None
+
+    recipe_file_real = os.path.realpath(recipe_file)
+    best_match = None
+    best_len = -1
+
+    for layer in bblayers:
+        layer_real = os.path.realpath(layer)
+        if recipe_file_real == layer_real or recipe_file_real.startswith(layer_real + os.sep):
+            if len(layer_real) > best_len:
+                best_match = layer_real
+                best_len = len(layer_real)
+
+    return best_match
+
 def load_env(devtool, bb, git, opts, group):
     group['workdir'] = os.path.join(group['base_dir'], group['name'])
     group['commit_msg'] = _make_commit_msg(group)
     os.mkdir(group['workdir'])
     for pkg_ctx in group['pkgs']:
         pkg_ctx['env'] = bb.env(pkg_ctx['PN'])
-        pkg_ctx['recipe_dir'] = os.path.dirname(pkg_ctx['env']['FILE'])
+        recipe_file = pkg_ctx['env'].get('FILE', '')
+        pkg_ctx['recipe_dir'] = os.path.dirname(recipe_file) if recipe_file else ''
+
+        layer_dir = _find_layer_dir_for_recipe_file(pkg_ctx['env'], recipe_file)
+        if layer_dir:
+            pkg_ctx['layer_dir'] = layer_dir
+        else:
+            W(" %s: Unable to determine layer dir from BitBake env; falling back to recipe dir" % pkg_ctx['PN'])
+            pkg_ctx['layer_dir'] = pkg_ctx['recipe_dir']
 
 def buildhistory_init(devtool, bb, git, opts, group):
     if not opts['buildhistory']:
@@ -141,7 +173,7 @@ def _rm_source_tree(devtool_output):
 def devtool_finish(devtool, bb, git, opts, group):
     try:
         for p in group['pkgs']:
-            devtool_output = devtool.finish(p['PN'], p['recipe_dir'])
+            devtool_output = devtool.finish(p['PN'], p.get('recipe_dir', ''))
             D(" 'devtool finish' printed:\n%s" %(devtool_output))
     except DevtoolError as e1:
         try:

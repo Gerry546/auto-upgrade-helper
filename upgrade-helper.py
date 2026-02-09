@@ -387,31 +387,63 @@ class Updater(object):
     def commit_changes(self, g):
         try:
             g['patch_file'] = None
+            g['patch_files'] = []
             pns = ",".join([pkg_ctx['PN'] for pkg_ctx in g['pkgs']])
 
             I(" %s: Auto commit changes ..." % pns)
+            # Determine git repository to commit in based on layer owning the recipe.
+            # This relies on BitBake configuration (via `bitbake -e`) rather than
+            # guessing repositories from PATH.
+            repo_to_paths = {}
             for p in g['pkgs']:
-                if 'recipe_dir' in p:
-                    self.git.add(p['recipe_dir'])
-            self.git.commit(g['commit_msg'], self.opts['author'])
+                layer_dir = p.get('layer_dir') or p.get('recipe_dir')
+                if not layer_dir:
+                    continue
 
-            stdout = self.git.create_patch(g['workdir'])
-            g['patch_file'] = stdout.strip()
+                repo_git = Git(layer_dir)
+                try:
+                    toplevel = repo_git._cmd("rev-parse --show-toplevel").strip()
+                except Error:
+                    # If it's not a git repo (or git not available), fall back.
+                    toplevel = layer_dir
+
+                repo_to_paths.setdefault(toplevel, []).append(p.get('recipe_dir', layer_dir))
+
+            if not repo_to_paths:
+                W(" %s: No layer/recipe directories available to commit" % pns)
+                return
+
+            created_patches = []
+            for repo_root, paths in repo_to_paths.items():
+                repo_git = Git(repo_root)
+                for path in paths:
+                    if path:
+                        repo_git.add(path)
+                repo_git.commit(g['commit_msg'], self.opts['author'])
+
+                stdout = repo_git.create_patch(g['workdir'])
+                patch_file = stdout.strip()
+                if patch_file:
+                    created_patches.append(patch_file)
+
+                revert_policy = settings.get('commit_revert_policy', 'failed_to_build')
+                if (g['error'] is not None and revert_policy == 'failed_to_build'):
+                    I("Due to build errors, the commit will also be reverted to avoid cascading upgrade failures.")
+                    repo_git.revert("HEAD")
+                elif revert_policy == 'all':
+                    I("The commit will be reverted to follow the policy set in the configuration file.")
+                    repo_git.revert("HEAD")
+
+            g['patch_files'] = created_patches
+            g['patch_file'] = created_patches[0] if created_patches else None
 
             if not g['patch_file']:
                 msg = "Patch file not generated."
-                E(" %s: %s\n %s" % (pns, msg, stdout))
-                raise Error(msg, stdout)
+                E(" %s: %s" % (pns, msg))
+                raise Error(msg, "")
             else:
                 I(" %s: Save patch in directory: %s." %
                     (pns, g['workdir']))
-            revert_policy = settings.get('commit_revert_policy', 'failed_to_build')
-            if (g['error'] is not None and revert_policy == 'failed_to_build'):
-                I("Due to build errors, the commit will also be reverted to avoid cascading upgrade failures.")
-                self.git.revert("HEAD")
-            elif revert_policy == 'all':
-                I("The commit will be reverted to follow the policy set in the configuration file.")
-                self.git.revert("HEAD")
         except Error as e:
             out = (e.stdout or "")
             err = (e.stderr or "")
