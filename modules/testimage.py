@@ -25,77 +25,65 @@ import os
 
 from logging import info as I
 
-from errors import Error
-
-def _pn_in_pkgs_ctx(pn, pkgs_ctx):
-    for c in pkgs_ctx:
-        if pn == c['PN']:
-            return c
-    return None
+from errors import Error, TestImageError
 
 class TestImage():
-    def __init__(self, bb, git, uh_work_dir, opts, groups, image):
-        self.bb = bb
-        self.git = git
+    def __init__(self, devtool, uh_work_dir, opts, groups, image):
+        self.devtool = devtool
         self.uh_work_dir = uh_work_dir
         self.opts = opts
-        self.groups = groups['succeeded']
+        self.groups = self._get_testable_groups(groups.get('succeeded', []))
         self.image = image
 
         self.logdir = os.path.join(uh_work_dir, "testimage-logs")
-        os.mkdir(self.logdir)
+        os.makedirs(self.logdir, exist_ok=True)
 
-        os.environ['BB_ENV_PASSTHROUGH_ADDITIONS'] = os.environ['BB_ENV_PASSTHROUGH_ADDITIONS'] + \
-            " CORE_IMAGE_EXTRA_INSTALL TEST_LOG_DIR TESTIMAGE_UPDATE_VARS"
+    def _has_ptest_package(self, pkg_ctx):
+        packages = (pkg_ctx.get('env', {}).get('PACKAGES', '') or '').split()
+        return "{}-ptest".format(pkg_ctx['PN']) in packages
+
+    def _get_testable_groups(self, groups):
+        return [group for group in groups
+                if any(self._has_ptest_package(pkg_ctx) for pkg_ctx in group['pkgs'])]
 
     def _get_pkgs_to_install(self, groups):
         pkgs_out = []
 
         for g in groups:
             for c in g['pkgs']:
-                pkgs_out.append(c['PN'])
+                if self._has_ptest_package(c):
+                    pkgs_out.append(c['PN'])
 
-                I(" Checking if package {} has ptests...".format(c['PN']))
-                if 'PTEST_ENABLED' in self.bb.env(c['PN']):
-                    I("  ...yes")
-                    pkgs_out.append((c['PN']) + '-ptest')
-                else:
-                    I("  ...no")
-
-        return ' '.join(pkgs_out)
+        return sorted(set(pkgs_out))
 
     def testimage(self, groups, machine, image):
-        os.environ['CORE_IMAGE_EXTRA_INSTALL'] = \
-            self._get_pkgs_to_install(groups)
-        os.environ['TEST_LOG_DIR'] = self.logdir
-        os.environ['TESTIMAGE_UPDATE_VARS'] = 'TEST_LOG_DIR'
-        I( " Installing additional packages to the image: {}".format(os.environ['CORE_IMAGE_EXTRA_INSTALL']))
+        pkgs = self._get_pkgs_to_install(groups)
+        I(" Installing additional packages to the image: {}".format(" ".join(pkgs)))
+        I("   running devtool test-image for %s on %s ..." % (image, machine))
 
-        I( "   building %s for %s ..." % (image, machine))
-        bitbake_create_output = ""
-        bitbake_run_output = ""
+        devtool_output = ""
         try:
-            bitbake_create_output = self.bb.complete(image, machine)
+            devtool_output = self.devtool.test_image(image, packages=pkgs, machine=machine)
         except Error as e:
-            I( "   building the testimage failed! Collecting logs...")
-            bitbake_create_output = e.stdout + e.stderr
-        else:
-            I( "   running %s/testimage for %s ..." % (image, machine))
-            try:
-                bitbake_run_output = self.bb.complete("%s -c testimage" % image, machine)
-            except Error as e:
-                I( "   running the testimage failed! Collecting logs...")
-                bitbake_run_output = e.stdout + e.stderr
+            I("   running the testimage failed! Collecting logs...")
+            devtool_output = (e.stdout or "") + (e.stderr or "")
+            failed_log = os.path.join(self.logdir, "devtool-test-image-failed.log")
+            with open(failed_log, 'w') as f:
+                f.write(devtool_output)
+            return TestImageError("devtool test-image failed; see {}".format(failed_log),
+                                  stdout=e.stdout, stderr=e.stderr)
 
-        if bitbake_create_output:
-            with open(os.path.join(self.logdir, "bitbake-create-testimage.log"), 'w') as f:
-                f.write(bitbake_create_output)
-        if bitbake_run_output:
-            with open(os.path.join(self.logdir, "bitbake-run-testimage.log"), 'w') as f:
-                f.write(bitbake_run_output)
+        if devtool_output:
+            with open(os.path.join(self.logdir, "devtool-test-image.log"), 'w') as f:
+                f.write(devtool_output)
         I(" All done! Testimage/ptest/qemu logs are collected to {}".format(self.logdir))
+        return None
 
     def run(self):
+        if not self.groups:
+            I("  No successful upgrades with -ptest packages available for test-image; skipping.")
+            return None
+
         machine = self.opts['machines'][0]
         I("  Testing image for %s ..." % machine)
-        self.testimage(self.groups, machine, self.image)
+        return self.testimage(self.groups, machine, self.image)

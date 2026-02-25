@@ -111,3 +111,10 @@ class IntegrationError(Error):
 
     def __str__(self):
         return "Failed(integrate)"
+
+class TestImageError(Error):
+    def __init__(self, message=None, stdout="", stderr=""):
+        super(TestImageError, self).__init__(message or "devtool test-image failed", stdout, stderr)
+
+    def __str__(self):
+        return "Failed(test-image)"

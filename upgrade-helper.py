@@ -256,23 +256,7 @@ class Updater(object):
         return enabled
 
     def _testimage_is_enabled(self):
-        enabled = False
-
-        if settings.get("testimage", "no") == "yes":
-            if 'testimage' in self.base_env['IMAGE_CLASSES']:
-                if "ptest" not in self.base_env["DISTRO_FEATURES"]:
-                    E(" testimage requires ptest in DISTRO_FEATURES please add to"\
-                      " conf/local.conf.")
-                    exit(1)
-
-                enabled = True
-            else:
-                E(" testimage was enabled in upgrade-helper.conf"\
-                  " but isn't added to IMAGE_CLASSES in conf/local.conf, \
-                    if you want to enable please set.")
-                exit(1)
-
-        return enabled
+        return settings.get("testimage", "no") == "yes"
 
     def _get_packagegroups_to_upgrade(self, packages=None):
         if packages is None:
@@ -388,6 +372,7 @@ class Updater(object):
         try:
             g['patch_file'] = None
             g['patch_files'] = []
+            g['commits'] = []
             pns = ",".join([pkg_ctx['PN'] for pkg_ctx in g['pkgs']])
 
             I(" %s: Auto commit changes ..." % pns)
@@ -420,6 +405,13 @@ class Updater(object):
                     if path:
                         repo_git.add(path)
                 repo_git.commit(g['commit_msg'], self.opts['author'])
+                commit_sha = repo_git.last_commit("HEAD").strip()
+                commit_info = {
+                    'repo': repo_root,
+                    'sha': commit_sha,
+                    'reverted': False,
+                }
+                g['commits'].append(commit_info)
 
                 stdout = repo_git.create_patch(g['workdir'])
                 patch_file = stdout.strip()
@@ -430,9 +422,11 @@ class Updater(object):
                 if (g['error'] is not None and revert_policy == 'failed_to_build'):
                     I("Due to build errors, the commit will also be reverted to avoid cascading upgrade failures.")
                     repo_git.revert("HEAD")
+                    commit_info['reverted'] = True
                 elif revert_policy == 'all':
                     I("The commit will be reverted to follow the policy set in the configuration file.")
                     repo_git.revert("HEAD")
+                    commit_info['reverted'] = True
 
             g['patch_files'] = created_patches
             g['patch_file'] = created_patches[0] if created_patches else None
@@ -452,6 +446,26 @@ class Updater(object):
                 I(" %s: nothing to commit" % pns)
                 return
             raise e
+
+    def _revert_group_commits(self, g, reason):
+        commits = g.get('commits', [])
+        if not commits:
+            return
+
+        pns = ",".join([pkg_ctx['PN'] for pkg_ctx in g['pkgs']])
+        for commit in reversed(commits):
+            if commit.get('reverted'):
+                continue
+
+            repo_root = commit.get('repo')
+            commit_sha = commit.get('sha')
+            if not repo_root or not commit_sha:
+                continue
+
+            I(" %s: Reverting commit %s due to %s" % (pns, commit_sha[:12], reason))
+            repo_git = Git(repo_root)
+            repo_git.revert(commit_sha)
+            commit['reverted'] = True
 
     def send_status_mail(self, statistics_summary, attachments):
         if "status_recipients" not in settings:
@@ -571,10 +585,28 @@ class Updater(object):
             ctxs['succeeded'] = succeeded_pkggroups_ctx
             ctxs['failed'] = failed_pkggroups_ctx
             image = settings.get('testimage_name', DEFAULT_TESTIMAGE)
-            tim = TestImage(self.bb, self.git, self.uh_work_dir, self.opts,
+            tim = TestImage(self.devtool, self.uh_work_dir, self.opts,
                    ctxs, image)
 
-            tim.run()
+            testimage_error = tim.run()
+            if testimage_error is not None:
+                E(" Test image failed; marking upgraded recipe groups as failed.")
+                revert_policy = settings.get('commit_revert_policy', 'failed_to_build')
+                for g in list(tim.groups):
+                    if g not in succeeded_pkggroups_ctx:
+                        continue
+                    if revert_policy in ('failed_to_test', 'all'):
+                        try:
+                            self._revert_group_commits(g, "failed test-image")
+                        except Exception as e:
+                            E(" Couldn't revert commits for %s after test-image failure" % g['name'])
+                            if isinstance(e, Error):
+                                E((e.stdout or "") + (e.stderr or ""))
+
+                    if g.get('error') is None:
+                        g['error'] = testimage_error
+                    succeeded_pkggroups_ctx.remove(g)
+                    failed_pkggroups_ctx.append(g)
 
         for g in pkggroups_ctx:
 

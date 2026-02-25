@@ -32,6 +32,20 @@ class Devtool(object):
         cmd = " finish -f " + recipe + " " + layer
         return self._cmd(cmd)
 
+    def test_image(self, image, packages=None, machine=None):
+        if machine:
+            try:
+                bb.process.run("bitbake-config-build enable-fragment machine/{}".format(machine))
+            except bb.process.ExecutionError as e:
+                raise DevtoolError("Failed to configure machine for test-image",
+                                   e.stdout, e.stderr)
+
+        cmd = " test-image " + image
+        if packages:
+            cmd = cmd + " -p " + ",".join(packages)
+        cmd = cmd + ' --test-suites "ping ssh ptest"'
+        return self._cmd(cmd)
+
     def reset(self, recipe = None):
         if recipe:
             cmd = " reset -n " + recipe

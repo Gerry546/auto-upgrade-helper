@@ -52,16 +52,14 @@ $BUILDDIR/upgrade-helper/work/recipe/buildhistory-diff.txt.
 
 (Do not remove any other inherited class in the process).
 
-4. If you want to enable testimage (optional) you need to enable in
-upgrade-helper.conf also add the following lines to your conf/local.conf
-file:
+4. If you want to enable testimage (optional) you need to enable it in
+upgrade-helper.conf.
 
+testimage=yes
 --------------- snip ---------------
-INHERIT += "testimage"
 
-# Add the following if your distro does not enable by default (poky does)
-#DISTRO_FEATURES_append = " ptest"
---------------- snip ---------------
+AUH now uses the native `devtool test-image` command. The devtool plugin
+handles the required image/test settings during execution.
 
 Also if you are running in a server without X11 session, you need to start
 a vncserver example:
