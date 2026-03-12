@@ -29,9 +29,8 @@ from utils.bitbake import bb
 from errors import Error
 
 class Git(object):
-    def __init__(self, dir):
-        self.repo_dir = dir
-        super(Git, self).__init__()
+    def __init__(self, repodir):
+        self.repo_dir = repodir
 
     def _cmd(self, operation):
         os.chdir(self.repo_dir)
