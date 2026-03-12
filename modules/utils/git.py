@@ -24,7 +24,6 @@
 #
 
 import os
-from logging import debug as D
 
 from utils.bitbake import bb
 from errors import Error
@@ -41,8 +40,7 @@ class Git(object):
         try:
             stdout, stderr = bb.process.run(cmd)
         except bb.process.ExecutionError as e:
-            D("%s executed from %s returned:\n%s" % (cmd, self.repo_dir, e.__str__()))
-            raise Error("The following git command failed: " + operation,
+            raise Error("The following git command failed in %s: %s" % (self.repo_dir, operation),
                         e.stdout, e.stderr)
 
         return stdout
