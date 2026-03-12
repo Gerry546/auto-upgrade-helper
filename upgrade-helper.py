@@ -67,7 +67,7 @@ if not os.getenv('BUILDDIR', False):
     exit(1)
 
 # Use the location of devtool to find scriptpath and hence bb/oe libs
-scripts_path = os.path.abspath(os.path.dirname(shutil.which("devtool")))
+scripts_path = os.path.realpath(os.path.abspath(os.path.dirname(shutil.which("devtool"))))
 sys.path = sys.path + [scripts_path + '/lib']
 import scriptpath
 scriptpath.add_bitbake_lib_path()
@@ -185,8 +185,8 @@ class Updater(object):
 
             self.git = Git(self.opts['layer_dir'])
         else:
-            # XXX: assume that the poky directory is the first entry in the PATH
-            self.git = Git(os.path.dirname(os.getenv('PATH', False).split(':')[0]))
+            # use scripts_path to get oe-core directory
+            self.git = Git(os.path.dirname(scripts_path))
         self.opts['machines'] = settings.get('machines', 'qemux86-64 qemuarm_musl').split()
 
         self.opts['send_email'] = self.args.send_emails
