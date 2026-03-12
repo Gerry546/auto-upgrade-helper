@@ -712,7 +712,10 @@ class UniverseUpdater(Updater):
             for group in pkggroups:
                 upgrade_group = []
                 for pkg in group:
-                    pkg_to_upgrade = _get_pkg_to_upgrade(self, layer_name, pkg['pn'], pkg['status'], pkg['cur_ver'], pkg['next_ver'], pkg['maintainer'], pkg['revision'], pkg['no_upgrade_reason'])
+                    maintainer = pkg['maintainer']
+                    if not maintainer and 'global_maintainer_override' in settings:
+                        maintainer = settings['global_maintainer_override']
+                    pkg_to_upgrade = _get_pkg_to_upgrade(self, layer_name, pkg['pn'], pkg['status'], pkg['cur_ver'], pkg['next_ver'], maintainer, pkg['revision'], pkg['no_upgrade_reason'])
                     if pkg_to_upgrade:
                         upgrade_group.append(pkg_to_upgrade)
                 if upgrade_group:
