@@ -523,8 +523,11 @@ class Updater(object):
             try:
                 self.commit_changes(g)
             except Exception as e:
-                import traceback
-                E(" Couldn't commit changes to %s:\n%s" % (pkggroup_name, traceback.format_exc()))
+                if not isinstance(e, Error):
+                    import traceback
+                    msg = "Failed(unknown error)\n" + traceback.format_exc()
+                    e = Error(message=msg)
+                E(" Couldn't commit changes to %s:\nmessage: %s\nstdout: %s\nstderr: %s" % (pkggroup_name, e.message, e.stdout, e.stderr))
                 # Ensure commit failures are recorded as group errors
                 g['error'] = e
                 if g in succeeded_pkggroups_ctx:
