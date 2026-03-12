@@ -184,11 +184,9 @@ class Updater(object):
                     _layer_settings_error(s)
 
             self.git = Git(self.opts['layer_dir'])
-            self.poky_git = Git(os.path.dirname(os.getenv('PATH', False).split(':')[0]))
         else:
             # XXX: assume that the poky directory is the first entry in the PATH
             self.git = Git(os.path.dirname(os.getenv('PATH', False).split(':')[0]))
-            self.poky_git = None
         self.opts['machines'] = settings.get('machines', 'qemux86-64 qemuarm_musl').split()
 
         self.opts['send_email'] = self.args.send_emails
