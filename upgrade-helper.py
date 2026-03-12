@@ -31,7 +31,7 @@ import argparse
 import os
 import subprocess
 
-import logging as log
+import logging
 from logging import debug as D
 from logging import info as I
 from logging import warning as W
@@ -41,7 +41,7 @@ from logging import critical as C
 import re
 import signal
 import sys
-import configparser as cp
+import configparser
 from datetime import datetime
 from datetime import date
 import shutil
@@ -125,7 +125,7 @@ def parse_config_file(config_file):
 
     if os.path.exists(cfg_file):
         D("Reading config file %s" % cfg_file)
-        cfg = cp.ConfigParser()
+        cfg = configparser.ConfigParser()
         cfg.read(cfg_file)
         try:
             settings_list = cfg.items("settings")
@@ -217,8 +217,8 @@ class Updater(object):
         os.mkdir(self.uh_recipes_failed_dir)
 
     def _add_file_logger(self):
-        fh = log.FileHandler(os.path.join(self.uh_work_dir, "upgrade-helper.log"))
-        logger = log.getLogger()
+        fh = logging.FileHandler(os.path.join(self.uh_work_dir, "upgrade-helper.log"))
+        logger = logging.getLogger()
         logger.addHandler(fh)
 
     def _get_status_msg(self, err):
@@ -755,10 +755,10 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, close_child_processes)
 
-    debug_levels = [log.CRITICAL, log.ERROR, log.WARNING, log.INFO, log.DEBUG]
+    debug_levels = [logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]
     args = parse_cmdline()
-    log.basicConfig(format='%(levelname)s:%(message)s',
-                    level=debug_levels[args.debug_level - 1])
+    logging.basicConfig(format='%(levelname)s:%(message)s',
+                        level=debug_levels[args.debug_level - 1])
     settings, maintainer_override = parse_config_file(args.config_file)
     if args.layer_names != '' and args.layer_dir == '':
         E("layer-dir is mandatory if layers are defined")
