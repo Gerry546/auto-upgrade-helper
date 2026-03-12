@@ -619,6 +619,7 @@ class UniverseUpdater(Updater):
 
         name = ''
 
+        I("Running bitbake-layers show-recipes ... (this may take several minutes)")
         output = subprocess.check_output('bitbake-layers show-recipes',
                 shell=True)
         for line in output.decode("utf-8") .split('\n'):
