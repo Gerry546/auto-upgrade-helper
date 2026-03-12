@@ -595,12 +595,15 @@ class UniverseUpdater(Updater):
         if len(args.recipe) == 1 and args.recipe[0] == "all" and self.opts['layer_mode'] != 'yes':
             self.recipes = [('', [])]
         elif self.opts['layer_mode'] == 'yes':
-            # when layer mode is enabled and no recipes are specified
+            # layer mode is enabled
             # we need to figure out what recipes are provided by the
-            # layer to try upgrade
+            # layer and filter it recipes provided
             self.recipes = []
             for layer in self.opts['layer_name'].split(' '):
-                recipes_for_layer = self._get_recipes_by_layer(layer)
+                if args.recipe[0] != "all":
+                    recipes_for_layer = args.recipe
+                else:
+                    recipes_for_layer = self._get_recipes_by_layer(layer)
                 I("layer %s => Recipes %s", layer, recipes_for_layer)
                 self.recipes.append((layer, recipes_for_layer))
         else:
